@@ -101,7 +101,8 @@ class CognitoJWTAuthenticator(Authenticator):
         logger.debug(f"[pre_spawn_start] user_options: {spawner.user_options}")
         logger.debug(f"[pre_spawn_start] spawner.server: {spawner.server}")
 
-        profile_selected = spawner.user_options.get("profile_form")
-        if not spawner.server and not profile_selected:
-            logger.warning(f"[pre_spawn_start] Auto-spawn attempt blocked for {user.name}")
-            raise Exception("Spawn blocked: user must select a profile manually.")
+        profile_form_flag = spawner.user_options.get("profile_form", None)
+
+        if not spawner.server and not profile_form_flag:
+            logger.warning(f"[pre_spawn_start] Blocking auto-spawn for {user.name} (no profile_form marker)")
+            raise Exception("Auto-spawn blocked: user must manually select a profile.")
