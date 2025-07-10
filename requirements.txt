@@ -1,0 +1,4 @@
+jupyterhub
+pyjwt
+requests
+flask
