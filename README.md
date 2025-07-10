@@ -1,6 +1,6 @@
 # Cognito JWT Authenticator for JupyterHub
 
-This project provides a custom JWT authenticator for JupyterHub using AWS Cognito.
+This project provides a custom pip-installable JWT authenticator for JupyterHub using AWS Cognito.
 
 ## Features
 

@@ -1,4 +1,4 @@
+pytest
+requests
 jupyterhub
 pyjwt
-requests
-flask
