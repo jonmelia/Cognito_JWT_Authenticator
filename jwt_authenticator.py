@@ -92,5 +92,3 @@ class CognitoJWTAuthenticator(Authenticator):
         logger.error(f"No matching public key for kid: {kid}")
         raise HTTPError(403, "Public key not found")
 
-    def login_url(self, base_url):
-        return f"{base_url}/hub/spawn?next=/hub/spawn"
