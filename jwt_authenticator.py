@@ -93,5 +93,4 @@ class CognitoJWTAuthenticator(Authenticator):
         raise HTTPError(403, "Public key not found")
 
     def login_url(self, base_url):
-        # Force redirect to /hub/spawn directly
-        return base_url + "/spawn"
+        return f"{base_url}/hub/spawn?next=/hub/spawn"
