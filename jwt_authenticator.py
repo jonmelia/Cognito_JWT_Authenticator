@@ -1,27 +1,27 @@
 import jwt
 import requests
 import logging
+import tornado.web
 from jwt.algorithms import RSAAlgorithm
 from jupyterhub.auth import Authenticator
-from tornado.web import HTTPError, RequestHandler
+from tornado.web import HTTPError
 from traitlets import Unicode
 from jupyterhub.handlers.base import BaseHandler
 
-# Setup stdout logger
+
+# Basic stdout logging
 logger = logging.getLogger("CognitoJWTAuthenticator")
 logger.setLevel(logging.DEBUG)
 if not logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-    logger.addHandler(handler)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+    logger.addHandler(stream_handler)
 
-# Safe post-auth hook
-def post_auth_redirect_hook(authenticator, handler: BaseHandler, auth_info):
+# Async post-auth hook with proper redirect handling
+async def post_auth_redirect_hook(authenticator, handler: BaseHandler, auth_info):
     logger.info("Post-auth hook triggered: redirecting to /hub/spawn")
-    if isinstance(handler, RequestHandler):
-        handler.redirect("/hub/spawn")
-    else:
-        logger.warning("Handler is not a Tornado RequestHandler")
+    handler.redirect("/hub/spawn")
+    raise tornado.web.Finish()  # required to terminate Tornado request handler
 
 class CognitoJWTAuthenticator(Authenticator):
     region = Unicode(help="AWS region, e.g., eu-west-1").tag(config=True)
