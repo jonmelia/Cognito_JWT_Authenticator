@@ -1,12 +1,32 @@
 import jwt
 import requests
 import logging
+import os
+from logging.handlers import RotatingFileHandler
 from jwt.algorithms import RSAAlgorithm
 from jupyterhub.auth import Authenticator
 from tornado.web import HTTPError
 from traitlets import Unicode
 
-logger = logging.getLogger(__name__)
+# Setup logger
+logger = logging.getLogger("CognitoJWTAuthenticator")
+logger.setLevel(logging.DEBUG)
+
+if not logger.handlers:
+    log_file = os.environ.get("AUTH_LOG_FILE", "/var/log/jupyterhub/authenticator.log")
+
+    # Rotating File Handler
+    rotating_handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=3)
+    rotating_handler.setLevel(logging.DEBUG)
+    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    rotating_handler.setFormatter(file_formatter)
+    logger.addHandler(rotating_handler)
+
+    # Stream Handler (stdout for journald/systemd)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.DEBUG)
+    stream_handler.setFormatter(file_formatter)
+    logger.addHandler(stream_handler)
 
 class CognitoJWTAuthenticator(Authenticator):
     region = Unicode(help="AWS region, e.g., eu-west-1").tag(config=True)
@@ -69,8 +89,15 @@ class CognitoJWTAuthenticator(Authenticator):
                 issuer=f"https://cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}",
             )
             logger.info("JWT successfully verified")
+            logger.debug(f"Decoded JWT claims: {decoded}")
 
-            username = decoded.get("cognito:username") or decoded.get("username") or decoded.get("sub")
+            username = (
+                decoded.get("cognito:username")
+                or decoded.get("username")
+                or decoded.get("email")
+                or decoded.get("sub")
+            )
+
             if not username:
                 logger.error("JWT does not contain a valid username field")
                 raise HTTPError(403, "Invalid token: username missing")
