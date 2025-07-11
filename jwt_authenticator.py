@@ -115,7 +115,7 @@ class CognitoJWTAuthenticator(Authenticator):
             raise HTTPError(403, f"Invalid token: {str(e)}")
         except Exception as e:
             logger.exception("Unexpected authentication error")
-            raise HTTPError(500, "Unexpected authentication error")
+            raise HTTPError(500, f"Unexpected error during authentication: {str(e)}")
 
     async def pre_spawn_start(self, user, spawner: Spawner):
         logger.info(f"[pre_spawn_start] User: {user.name}, Spawner: {spawner.name}")
@@ -126,6 +126,10 @@ class CognitoJWTAuthenticator(Authenticator):
 
         if not spawner.server and not profile_form_flag:
             logger.warning(f"[pre_spawn_start] Blocking auto-spawn for {user.name} (no profile_form marker)")
-            raise Exception("Auto-spawn blocked: user must manually select a profile.")
+            handler = spawner.handler
+            if handler:
+                handler.redirect('/hub/spawn')
+                return
+            raise HTTPError(403, "Auto-spawn blocked: user must manually select a profile.")
 
 
