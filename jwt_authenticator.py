@@ -21,7 +21,7 @@ class CognitoJWTAuthenticator(Authenticator):
     region = Unicode(help="AWS region, e.g., eu-west-1").tag(config=True)
     user_pool_id = Unicode(help="Cognito User Pool ID").tag(config=True)
     audience = Unicode(help="Cognito App Client ID (audience)").tag(config=True)
-    enable_kms_keys = Bool(False, help="Enable KMS key handling in authentication").tag(config=True)
+    enable_kms_keys = Bool(False, help="Enable KMS key and bucket handling in authentication (optional, can be disabled)" ).tag(config=True)  # Set to False to completely disable KMS/bucket injection
 
     def get_jwks(self):
         url = f"https://cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}/.well-known/jwks.json"
@@ -58,12 +58,16 @@ class CognitoJWTAuthenticator(Authenticator):
 
         token_input = handler.get_argument("token", default=None)
 
-        user_kms = shared_kms = None
+        user_kms = shared_kms = bucket = None
+        # KMS and bucket values will only be retrieved and processed if enabled
         if self.enable_kms_keys:
+            # These lines can be removed if KMS and bucket are not required
             user_kms_input = handler.get_argument("user_kms_key", default=None)
             shared_kms_input = handler.get_argument("shared_kms_key", default=None)
+            bucket_input = handler.get_argument("bucket", default=None)
             user_kms = self.decode_input(user_kms_input)
             shared_kms = self.decode_input(shared_kms_input)
+            bucket = self.decode_input(bucket_input)
 
         if not token_input:
             logger.warning("Missing JWT token")
@@ -97,12 +101,16 @@ class CognitoJWTAuthenticator(Authenticator):
 
             logger.info(f"Authenticated user: {username}")
 
+            # Optionally include auth_state only when KMS/bucket handling is enabled
             if self.enable_kms_keys:
+                # This entire block can be removed if KMS/bucket support is unnecessary
                 auth_state = {}
                 if user_kms:
                     auth_state["user_kms_key"] = user_kms
                 if shared_kms:
                     auth_state["shared_kms_key"] = shared_kms
+                if bucket:
+                    auth_state["bucket"] = bucket
                 return {"name": username, "auth_state": auth_state or None}
             else:
                 return {"name": username}
@@ -132,4 +140,25 @@ class CognitoJWTAuthenticator(Authenticator):
                 return
             raise HTTPError(403, "Auto-spawn blocked: user must manually select a profile.")
 
+async def pre_spawn_hook(spawner):
+    authenticator = spawner.authenticator
+    # Only apply KMS/bucket S3 mounting logic if enabled. Remove this block if not needed.
+    if getattr(authenticator, 'enable_kms_keys', False):
+        auth_state = await spawner.user.get_auth_state()
+        user_kms = auth_state.get("user_kms_key") if auth_state else None
+        shared_kms = auth_state.get("shared_kms_key") if auth_state else None
+        bucket = auth_state.get("bucket") if auth_state else "your-bucket"
+        username = spawner.user.name
+
+        if user_kms:
+            spawner.environment.setdefault("S3_USER_MOUNT_ENABLED", "true")
+            spawner.environment.setdefault("S3_USER_BUCKET_PATH", f"s3://{bucket}/users/{username}/")
+            spawner.environment.setdefault("S3_USER_KMS_KEY_ID", user_kms)
+            spawner.environment.setdefault("S3_USER_MOUNT_PATH", "/home/jovyan")
+
+        if shared_kms:
+            spawner.environment.setdefault("S3_SHARED_MOUNT_ENABLED", "true")
+            spawner.environment.setdefault("S3_SHARED_BUCKET_PATH", f"s3://{bucket}/shared/{username}/")
+            spawner.environment.setdefault("S3_SHARED_KMS_KEY_ID", shared_kms)
+            spawner.environment.setdefault("S3_SHARED_MOUNT_PATH", "/mnt/shared")
 
